@@ -1,3 +1,4 @@
-streamlit
-pandas
-pydeck
+pip install streamlit
+pip install pandas
+pip install folium
+pip install streamlit-folium
