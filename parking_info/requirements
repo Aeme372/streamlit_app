@@ -1,4 +1,4 @@
-pip install streamlit
-pip install pandas
-pip install folium
-pip install streamlit-folium
+streamlit
+pandas
+folium
+streamlit-folium
