@@ -1,168 +1,226 @@
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
+import plotly.express as px
 
 st.set_page_config(
-    page_title="서울시 공영주차장 지도",
+    page_title="서울시 공영주차장 안내",
     page_icon="🚗",
     layout="wide"
 )
 
-st.title("🚗 서울시 공영주차장 지도")
+st.title("🚗 서울시 공영주차장 안내 시스템")
 
-uploaded_file = st.file_uploader(
-    "공영주차장 CSV 업로드",
-    type=["csv"]
-)
+uploaded = st.file_uploader("CSV 업로드", type="csv")
 
-if uploaded_file is not None:
+if uploaded is None:
+    st.info("공영주차장 CSV를 업로드하세요.")
+    st.stop()
 
-    # 인코딩 자동 처리
-    encodings = ["cp949", "utf-8", "euc-kr"]
 
-    df = None
+@st.cache_data
+def load_data(file):
 
-    for enc in encodings:
+    for enc in ["cp949", "utf-8", "euc-kr"]:
         try:
-            uploaded_file.seek(0)
-            df = pd.read_csv(uploaded_file, encoding=enc)
-            break
+            file.seek(0)
+            return pd.read_csv(file, encoding=enc)
         except:
             pass
 
-    if df is None:
-        st.error("CSV 파일을 읽을 수 없습니다.")
-        st.stop()
+    raise Exception("CSV를 읽을 수 없습니다.")
 
-    st.success(f"{len(df)}개의 데이터를 불러왔습니다.")
 
-    st.write("### 컬럼")
-    st.write(df.columns.tolist())
+df = load_data(uploaded)
 
-    # 필요한 컬럼 존재 여부 확인
-    required = ["주차장명", "주소", "위도", "경도"]
+# 자치구 추출
+df["자치구"] = df["주소"].astype(str).str.extract(r"([가-힣]+구)")
 
-    if not all(col in df.columns for col in required):
-        st.error("CSV에 '주차장명', '주소', '위도', '경도' 컬럼이 있어야 합니다.")
-        st.stop()
+# 위경도 숫자 변환
+df["위도"] = pd.to_numeric(df["위도"], errors="coerce")
+df["경도"] = pd.to_numeric(df["경도"], errors="coerce")
 
-    # 숫자형 변환
-    df["위도"] = pd.to_numeric(df["위도"], errors="coerce")
-    df["경도"] = pd.to_numeric(df["경도"], errors="coerce")
+# ---------- 사이드바 ----------
+st.sidebar.title("검색 조건")
 
-    # 좌표 없는 행 제거
-    df = df.dropna(subset=["위도", "경도"])
+keyword = st.sidebar.text_input("🔍 주차장명")
 
-    if len(df) == 0:
-        st.error("위도·경도 데이터가 없습니다.")
-        st.stop()
+gus = ["전체"] + sorted(df["자치구"].dropna().unique())
 
-    # 검색
-    keyword = st.text_input("주차장 검색")
+selected_gu = st.sidebar.selectbox(
+    "🏙 자치구",
+    gus
+)
 
-    if keyword:
-        df = df[df["주차장명"].str.contains(keyword, na=False)]
+types = ["전체"] + sorted(df["주차장 종류명"].dropna().unique())
 
-    # 종류 필터
-    if "주차장 종류명" in df.columns:
+selected_type = st.sidebar.selectbox(
+    "🅿 주차장 종류",
+    types
+)
 
-        kinds = ["전체"] + sorted(df["주차장 종류명"].dropna().unique())
+# ---------- 필터 ----------
 
-        selected = st.selectbox(
-            "주차장 종류",
-            kinds
-        )
+filtered = df.copy()
 
-        if selected != "전체":
-            df = df[df["주차장 종류명"] == selected]
-
-    st.subheader("주차장 목록")
-
-    show_cols = [
-        c for c in [
-            "주차장명",
-            "주소",
-            "주차장 종류명",
-            "총 주차면",
-            "기본 주차 요금",
-            "전화번호"
-        ] if c in df.columns
+if keyword:
+    filtered = filtered[
+        filtered["주차장명"].str.contains(keyword, na=False)
     ]
 
-    st.dataframe(
-        df[show_cols],
-        use_container_width=True
-    )
+if selected_gu != "전체":
+    filtered = filtered[
+        filtered["자치구"] == selected_gu
+    ]
 
-    st.subheader("지도")
+if selected_type != "전체":
+    filtered = filtered[
+        filtered["주차장 종류명"] == selected_type
+    ]
+
+# ---------- 통계 ----------
+
+c1, c2, c3 = st.columns(3)
+
+c1.metric("주차장 수", len(filtered))
+
+c2.metric(
+    "총 주차면",
+    int(filtered["총 주차면"].fillna(0).sum())
+)
+
+c3.metric(
+    "자치구 수",
+    filtered["자치구"].nunique()
+)
+
+st.divider()
+
+# ---------- 지도 ----------
+
+st.subheader("🗺 지도")
+
+map_df = filtered.dropna(subset=["위도", "경도"])
+
+if len(map_df):
 
     layer = pdk.Layer(
         "ScatterplotLayer",
-        data=df,
+        data=map_df,
         get_position="[경도, 위도]",
+        get_fill_color=[0,120,255,180],
         get_radius=40,
-        get_fill_color=[255, 0, 0, 180],
-        pickable=True,
+        pickable=True
     )
 
-    view_state = pdk.ViewState(
-        latitude=df["위도"].mean(),
-        longitude=df["경도"].mean(),
-        zoom=11,
-        pitch=0,
+    view = pdk.ViewState(
+        latitude=map_df["위도"].mean(),
+        longitude=map_df["경도"].mean(),
+        zoom=11
     )
 
-    tooltip = {
-        "html": """
+    tooltip={
+        "html":"""
         <b>{주차장명}</b><br/>
         주소 : {주소}<br/>
         종류 : {주차장 종류명}<br/>
-        요금 : {기본 주차 요금}<br/>
-        전화 : {전화번호}
+        전화 : {전화번호}<br/>
+        주차면 : {총 주차면}
         """
     }
 
     st.pydeck_chart(
         pdk.Deck(
-            map_style="mapbox://styles/mapbox/light-v9",
-            initial_view_state=view_state,
             layers=[layer],
-            tooltip=tooltip,
+            initial_view_state=view,
+            tooltip=tooltip
         )
     )
 
-with st.sidebar:
-    st.header("검색 조건")
-
-    keyword = st.text_input("주차장 검색")
-# 자치구 필터
-if "자치구" in df.columns:
-    gu_col = "자치구"
-elif "구명" in df.columns:
-    gu_col = "구명"
-elif "소재지지번주소" in df.columns:
-    # 주소에서 자치구 추출
-    df["자치구"] = df["소재지지번주소"].astype(str).str.extract(r"서울특별시\s*([가-힣]+구)")
-    gu_col = "자치구"
-elif "주소" in df.columns:
-    # 주소에서 자치구 추출
-    df["자치구"] = df["주소"].astype(str).str.extract(r"서울특별시\s*([가-힣]+구)")
-    gu_col = "자치구"
 else:
-    gu_col = None
+    st.warning("위도·경도 정보가 없습니다.")
 
-if gu_col:
-    gu_list = ["전체"] + sorted(df[gu_col].dropna().unique())
+# ---------- 차트 ----------
 
-    selected_gu = st.selectbox(
-        "자치구 선택",
-        gu_list
+left,right = st.columns(2)
+
+with left:
+
+    st.subheader("자치구별 주차장 수")
+
+    chart = (
+        filtered["자치구"]
+        .value_counts()
+        .reset_index()
     )
 
-    if selected_gu != "전체":
-        df = df[df[gu_col] == selected_gu]
+    chart.columns=["자치구","개수"]
 
-selected_gu = st.selectbox(
-    "자치구 선택",
-    gu_list
+    fig=px.bar(
+        chart,
+        x="자치구",
+        y="개수"
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
+
+with right:
+
+    st.subheader("주차장 종류")
+
+    chart2=(
+        filtered["주차장 종류명"]
+        .value_counts()
+        .reset_index()
+    )
+
+    chart2.columns=["종류","개수"]
+
+    fig2=px.pie(
+        chart2,
+        names="종류",
+        values="개수"
+    )
+
+    st.plotly_chart(
+        fig2,
+        use_container_width=True
+    )
+
+# ---------- 테이블 ----------
+
+st.subheader("📋 주차장 목록")
+
+cols=[]
+
+for c in [
+    "주차장명",
+    "자치구",
+    "주소",
+    "주차장 종류명",
+    "총 주차면",
+    "전화번호",
+    "기본 주차 요금",
+    "기본 주차 시간"
+]:
+    if c in filtered.columns:
+        cols.append(c)
+
+st.dataframe(
+    filtered[cols],
+    use_container_width=True
+)
+
+# ---------- 다운로드 ----------
+
+csv = filtered.to_csv(index=False).encode("cp949")
+
+st.download_button(
+    "📥 필터 결과 다운로드",
+    csv,
+    "parking.csv",
+    "text/csv"
 )
