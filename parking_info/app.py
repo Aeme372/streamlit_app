@@ -1,90 +1,132 @@
 import streamlit as st
 import pandas as pd
-import folium
-from streamlit_folium import st_folium
+import pydeck as pdk
 
 st.set_page_config(
-    page_title="서울시 공영주차장",
+    page_title="서울시 공영주차장 지도",
+    page_icon="🚗",
     layout="wide"
 )
 
-st.title("🚗 서울시 공영주차장 안내")
+st.title("🚗 서울시 공영주차장 지도")
 
-uploaded = st.file_uploader(
-    "CSV 파일 업로드",
-    type="csv"
+uploaded_file = st.file_uploader(
+    "공영주차장 CSV 업로드",
+    type=["csv"]
 )
 
-if uploaded is not None:
+if uploaded_file is not None:
 
-    # 여러 인코딩 자동 시도
-    try:
-        df = pd.read_csv(uploaded, encoding="cp949")
-    except:
-        uploaded.seek(0)
+    # 인코딩 자동 처리
+    encodings = ["cp949", "utf-8", "euc-kr"]
+
+    df = None
+
+    for enc in encodings:
         try:
-            df = pd.read_csv(uploaded, encoding="utf-8")
+            uploaded_file.seek(0)
+            df = pd.read_csv(uploaded_file, encoding=enc)
+            break
         except:
-            uploaded.seek(0)
-            df = pd.read_csv(uploaded, encoding="euc-kr")
+            pass
+
+    if df is None:
+        st.error("CSV 파일을 읽을 수 없습니다.")
+        st.stop()
 
     st.success(f"{len(df)}개의 데이터를 불러왔습니다.")
 
-    st.write("### 컬럼 확인")
+    st.write("### 컬럼")
     st.write(df.columns.tolist())
 
-    # 컬럼 선택
-    lat_col = st.selectbox(
-        "위도 컬럼",
-        df.columns
+    # 필요한 컬럼 존재 여부 확인
+    required = ["주차장명", "주소", "위도", "경도"]
+
+    if not all(col in df.columns for col in required):
+        st.error("CSV에 '주차장명', '주소', '위도', '경도' 컬럼이 있어야 합니다.")
+        st.stop()
+
+    # 숫자형 변환
+    df["위도"] = pd.to_numeric(df["위도"], errors="coerce")
+    df["경도"] = pd.to_numeric(df["경도"], errors="coerce")
+
+    # 좌표 없는 행 제거
+    df = df.dropna(subset=["위도", "경도"])
+
+    if len(df) == 0:
+        st.error("위도·경도 데이터가 없습니다.")
+        st.stop()
+
+    # 검색
+    keyword = st.text_input("주차장 검색")
+
+    if keyword:
+        df = df[df["주차장명"].str.contains(keyword, na=False)]
+
+    # 종류 필터
+    if "주차장 종류명" in df.columns:
+
+        kinds = ["전체"] + sorted(df["주차장 종류명"].dropna().unique())
+
+        selected = st.selectbox(
+            "주차장 종류",
+            kinds
+        )
+
+        if selected != "전체":
+            df = df[df["주차장 종류명"] == selected]
+
+    st.subheader("주차장 목록")
+
+    show_cols = [
+        c for c in [
+            "주차장명",
+            "주소",
+            "주차장 종류명",
+            "총 주차면",
+            "기본 주차 요금",
+            "전화번호"
+        ] if c in df.columns
+    ]
+
+    st.dataframe(
+        df[show_cols],
+        use_container_width=True
     )
 
-    lon_col = st.selectbox(
-        "경도 컬럼",
-        df.columns
+    st.subheader("지도")
+
+    layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=df,
+        get_position="[경도, 위도]",
+        get_radius=40,
+        get_fill_color=[255, 0, 0, 180],
+        pickable=True,
     )
 
-    name_col = st.selectbox(
-        "주차장 이름 컬럼",
-        df.columns
+    view_state = pdk.ViewState(
+        latitude=df["위도"].mean(),
+        longitude=df["경도"].mean(),
+        zoom=11,
+        pitch=0,
     )
 
-    search = st.text_input("주차장 검색")
+    tooltip = {
+        "html": """
+        <b>{주차장명}</b><br/>
+        주소 : {주소}<br/>
+        종류 : {주차장 종류명}<br/>
+        요금 : {기본 주차 요금}<br/>
+        전화 : {전화번호}
+        """
+    }
 
-    if search:
-        df = df[
-            df[name_col]
-            .astype(str)
-            .str.contains(search, case=False, na=False)
-        ]
-
-    st.write("### 데이터")
-    st.dataframe(df)
-
-    # 지도 생성
-    m = folium.Map(
-        location=[37.5665, 126.9780],
-        zoom_start=11
-    )
-
-    for _, row in df.iterrows():
-
-        try:
-            lat = float(row[lat_col])
-            lon = float(row[lon_col])
-        except:
-            continue
-
-        folium.Marker(
-            [lat, lon],
-            popup=str(row[name_col]),
-            tooltip=str(row[name_col])
-        ).add_to(m)
-
-    st.write("### 지도")
-
-    st_folium(
-        m,
-        width=1200,
-        height=700
+    st.pydeck_chart(
+        pdk.Deck(
+            map_style="mapbox://styles/mapbox/light-v9",
+            initial_view_state=view_state,
+            layers=[layer],
+            tooltip=tooltip,
+        )
     )
