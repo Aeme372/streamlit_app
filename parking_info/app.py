@@ -155,7 +155,7 @@ with left:
 
     chart.columns=["자치구","개수"]
 
-   chart = filtered["자치구"].value_counts()
+    chart = filtered["자치구"].value_counts()
 st.bar_chart(chart)
 
 with right:
@@ -170,7 +170,7 @@ with right:
 
     chart2.columns=["종류","개수"]
 
-  type_chart = filtered["주차장 종류명"].value_counts()
+    type_chart = filtered["주차장 종류명"].value_counts()
 st.bar_chart(type_chart)
 
 # ---------- 테이블 ----------
