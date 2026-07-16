@@ -135,11 +135,6 @@ with st.sidebar:
     st.header("검색 조건")
 
     keyword = st.text_input("주차장 검색")
-
-selected_gu = st.selectbox(
-    "자치구 선택",
-    gu_list
-)
 # 자치구 필터
 if "자치구" in df.columns:
     gu_col = "자치구"
@@ -166,3 +161,8 @@ if gu_col:
 
     if selected_gu != "전체":
         df = df[df[gu_col] == selected_gu]
+
+selected_gu = st.selectbox(
+    "자치구 선택",
+    gu_list
+)
