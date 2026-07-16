@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
-import plotly.express as px
 
 st.set_page_config(
     page_title="서울시 공영주차장 안내",
@@ -156,16 +155,8 @@ with left:
 
     chart.columns=["자치구","개수"]
 
-    fig=px.bar(
-        chart,
-        x="자치구",
-        y="개수"
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
+   chart = filtered["자치구"].value_counts()
+st.bar_chart(chart)
 
 with right:
 
@@ -179,16 +170,8 @@ with right:
 
     chart2.columns=["종류","개수"]
 
-    fig2=px.pie(
-        chart2,
-        names="종류",
-        values="개수"
-    )
-
-    st.plotly_chart(
-        fig2,
-        use_container_width=True
-    )
+  type_chart = filtered["주차장 종류명"].value_counts()
+st.bar_chart(type_chart)
 
 # ---------- 테이블 ----------
 
