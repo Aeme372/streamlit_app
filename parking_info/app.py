@@ -130,3 +130,39 @@ if uploaded_file is not None:
             tooltip=tooltip,
         )
     )
+
+with st.sidebar:
+    st.header("검색 조건")
+
+    keyword = st.text_input("주차장 검색")
+
+selected_gu = st.selectbox(
+    "자치구 선택",
+    gu_list
+)
+# 자치구 필터
+if "자치구" in df.columns:
+    gu_col = "자치구"
+elif "구명" in df.columns:
+    gu_col = "구명"
+elif "소재지지번주소" in df.columns:
+    # 주소에서 자치구 추출
+    df["자치구"] = df["소재지지번주소"].astype(str).str.extract(r"서울특별시\s*([가-힣]+구)")
+    gu_col = "자치구"
+elif "주소" in df.columns:
+    # 주소에서 자치구 추출
+    df["자치구"] = df["주소"].astype(str).str.extract(r"서울특별시\s*([가-힣]+구)")
+    gu_col = "자치구"
+else:
+    gu_col = None
+
+if gu_col:
+    gu_list = ["전체"] + sorted(df[gu_col].dropna().unique())
+
+    selected_gu = st.selectbox(
+        "자치구 선택",
+        gu_list
+    )
+
+    if selected_gu != "전체":
+        df = df[df[gu_col] == selected_gu]
