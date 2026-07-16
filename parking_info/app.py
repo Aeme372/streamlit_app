@@ -3,59 +3,88 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 
-st.set_page_config(page_title="공영주차장 안내", layout="wide")
+st.set_page_config(
+    page_title="서울시 공영주차장",
+    layout="wide"
+)
 
 st.title("🚗 서울시 공영주차장 안내")
 
-uploaded_file = st.file_uploader("CSV 파일 업로드", type=["csv"])
+uploaded = st.file_uploader(
+    "CSV 파일 업로드",
+    type="csv"
+)
 
-if uploaded_file:
+if uploaded is not None:
 
-    df = pd.read_csv(uploaded_file, encoding="cp949")
+    # 여러 인코딩 자동 시도
+    try:
+        df = pd.read_csv(uploaded, encoding="cp949")
+    except:
+        uploaded.seek(0)
+        try:
+            df = pd.read_csv(uploaded, encoding="utf-8")
+        except:
+            uploaded.seek(0)
+            df = pd.read_csv(uploaded, encoding="euc-kr")
 
-    st.success(f"{len(df)}개의 주차장 정보를 불러왔습니다.")
+    st.success(f"{len(df)}개의 데이터를 불러왔습니다.")
 
-    keyword = st.text_input("주차장 검색")
+    st.write("### 컬럼 확인")
+    st.write(df.columns.tolist())
 
-    if keyword:
-        df = df[df["주차장명"].str.contains(keyword, na=False)]
+    # 컬럼 선택
+    lat_col = st.selectbox(
+        "위도 컬럼",
+        df.columns
+    )
 
-    if "주차장종류" in df.columns:
-        kinds = ["전체"] + list(df["주차장종류"].dropna().unique())
+    lon_col = st.selectbox(
+        "경도 컬럼",
+        df.columns
+    )
 
-        selected = st.selectbox("주차장 종류", kinds)
+    name_col = st.selectbox(
+        "주차장 이름 컬럼",
+        df.columns
+    )
 
-        if selected != "전체":
-            df = df[df["주차장종류"] == selected]
+    search = st.text_input("주차장 검색")
 
+    if search:
+        df = df[
+            df[name_col]
+            .astype(str)
+            .str.contains(search, case=False, na=False)
+        ]
+
+    st.write("### 데이터")
     st.dataframe(df)
 
-    center = [37.5665, 126.9780]
-
-    if len(df) > 0:
-
-        if "위도" in df.columns and "경도" in df.columns:
-
-            center = [df.iloc[0]["위도"], df.iloc[0]["경도"]]
-
-    m = folium.Map(location=center, zoom_start=11)
+    # 지도 생성
+    m = folium.Map(
+        location=[37.5665, 126.9780],
+        zoom_start=11
+    )
 
     for _, row in df.iterrows():
 
-        if pd.isna(row["위도"]) or pd.isna(row["경도"]):
+        try:
+            lat = float(row[lat_col])
+            lon = float(row[lon_col])
+        except:
             continue
 
-        popup = f"""
-        <b>{row['주차장명']}</b><br>
-        주소 : {row['주소']}<br>
-        종류 : {row['주차장종류']}<br>
-        요금 : {row['요금정보']}
-        """
-
         folium.Marker(
-            location=[row["위도"], row["경도"]],
-            popup=popup,
-            tooltip=row["주차장명"]
+            [lat, lon],
+            popup=str(row[name_col]),
+            tooltip=str(row[name_col])
         ).add_to(m)
 
-    st_folium(m, width=1200, height=700)
+    st.write("### 지도")
+
+    st_folium(
+        m,
+        width=1200,
+        height=700
+    )
