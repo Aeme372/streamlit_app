@@ -121,3 +121,64 @@ def analyze_comments(comments):
         "lengths": lengths,
         "keywords": extract_keywords(comments)
     }
+import plotly.express as px
+import streamlit as st
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+
+def sentiment_pie(counter):
+    fig=px.pie(names=list(counter.keys()), values=list(counter.values()), title="감성 분석")
+    st.plotly_chart(fig, use_container_width=True)
+
+def keyword_bar(keywords):
+    if not keywords: return
+    words=[k for k,v in keywords]
+    counts=[v for k,v in keywords]
+    fig=px.bar(x=words,y=counts,title="TOP 키워드")
+    st.plotly_chart(fig,use_container_width=True)
+
+def comment_length_hist(lengths):
+    fig=px.histogram(x=lengths, nbins=20, title="댓글 길이")
+    st.plotly_chart(fig,use_container_width=True)
+
+def draw_wordcloud(text,font_path="fonts/NanumGothic.ttf"):
+    wc=WordCloud(font_path=font_path,width=1000,height=600,background_color="white").generate(text)
+    fig,ax=plt.subplots(figsize=(10,6))
+    ax.imshow(wc)
+    ax.axis("off")
+    st.pyplot(fig)
+"""
+wordcloud_util.py
+"""
+
+from collections import Counter
+from kiwipiepy import Kiwi
+from wordcloud import WordCloud
+
+kiwi=Kiwi()
+
+STOPWORDS={"이","그","저","수","등","및","에서","으로","하다","있다"}
+
+def tokenize(text:str):
+    words=[]
+    for t in kiwi.tokenize(text):
+        if t.tag.startswith("N") and len(t.form)>1 and t.form not in STOPWORDS:
+            words.append(t.form)
+    return words
+
+def frequencies(comments):
+    all_words=[]
+    for c in comments:
+        all_words.extend(tokenize(c))
+    return Counter(all_words)
+
+def make_wordcloud(comments,font_path="fonts/NanumGothic.ttf",
+                   width=1200,height=700):
+    freq=frequencies(comments)
+    wc=WordCloud(
+        font_path=font_path,
+        width=width,
+        height=height,
+        background_color="white"
+    ).generate_from_frequencies(freq)
+    return wc
