@@ -145,9 +145,6 @@ def draw_wordcloud(text,font_path="fonts/NanumGothic.ttf"):
     ax.imshow(wc)
     ax.axis("off")
     st.pyplot(fig)
-"""
-wordcloud_util.py
-"""
 
 from collections import Counter
 from kiwipiepy import Kiwi
