@@ -16,10 +16,6 @@ if st.button("분석 시작"):
     else:
         st.info("이 파일은 프로젝트의 시작 템플릿입니다. 이후 youtube_api.py, analyzer.py, visualization.py 등을 연결하여 완성합니다.")
         st.write("입력 URL:", url)
-"""
-youtube_api.py
-YouTube Data API helper (template)
-"""
 
 from googleapiclient.discovery import build
 
@@ -76,10 +72,6 @@ def get_comments(youtube, video_id: str, max_results: int = 100):
         if not token:
             break
     return comments
-"""
-analyzer.py
-댓글 분석 유틸리티
-"""
 
 from collections import Counter
 import re
