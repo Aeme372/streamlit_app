@@ -1,12 +1,7 @@
 streamlit
 google-api-python-client
 pandas
-matplotlib
 plotly
 wordcloud
-konlpy
 kiwipiepy
-scikit-learn
-textblob
-numpy
-networkx
+matplotlib
