@@ -14,7 +14,6 @@ if st.button("분석 시작"):
     elif not url:
         st.warning("영상 URL을 입력하세요.")
     else:
-        st.info("이 파일은 프로젝트의 시작 템플릿입니다. 이후 youtube_api.py, analyzer.py, visualization.py 등을 연결하여 완성합니다.")
         st.write("입력 URL:", url)
 
 from googleapiclient.discovery import build
