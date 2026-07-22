@@ -18,7 +18,6 @@ if st.button("분석 시작"):
 
 from googleapiclient.discovery import build
 
-
 def get_youtube(api_key: str):
     return build("youtube", "v3", developerKey=api_key)
 
