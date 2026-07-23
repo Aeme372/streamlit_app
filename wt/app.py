@@ -95,31 +95,41 @@ st.write(df.head())
 # 컬럼 확인
 # =========================
 
-required_columns = [
-    "날짜",
-    "최고기온",
-    "최저기온",
-    "평균기온",
-    "강수량",
-    "습도"
-]
+# =========================
+# 자동 컬럼 탐색
+# =========================
+
+st.success("CSV 로딩 완료")
+
+st.write("사용 가능한 컬럼")
+
+st.write(list(df.columns))
 
 
-missing = []
+# 숫자 컬럼 자동 탐색
 
-for col in required_columns:
+numeric_columns = df.select_dtypes(
+    include=["int64", "float64"]
+).columns.tolist()
 
-    if col not in df.columns:
-        missing.append(col)
 
-
-if missing:
+if len(numeric_columns) == 0:
 
     st.error(
-        f"필요한 컬럼이 없습니다: {missing}"
+        "분석 가능한 숫자 데이터가 없습니다."
     )
 
     st.stop()
+
+
+st.sidebar.subheader("분석할 데이터 선택")
+
+
+selected_column = st.sidebar.selectbox(
+    "분석 대상",
+    numeric_columns
+)
+
 
 
 
@@ -192,7 +202,7 @@ rain_filter = st.sidebar.checkbox(
 if rain_filter:
 
     filtered = filtered[
-        filtered["강수량"] > 0
+        filtered[selected_column] > 0
     ]
 
 
@@ -223,25 +233,25 @@ col1,col2,col3,col4 = st.columns(4)
 
 col1.metric(
     "평균 기온",
-    f"{filtered['평균기온'].mean():.1f}℃"
+    f"{filtered[selected_column].mean():.1f}℃"
 )
 
 
 col2.metric(
     "최고 기온",
-    f"{filtered['최고기온'].max():.1f}℃"
+    f"{filtered[selected_column].max():.1f}℃"
 )
 
 
 col3.metric(
     "총 강수량",
-    f"{filtered['강수량'].sum():.1f}mm"
+    f"{filtered[selected_column].sum():.1f}mm"
 )
 
 
 col4.metric(
     "평균 습도",
-    f"{filtered['습도'].mean():.1f}%"
+    f"{filtered[selected_column].mean():.1f}%"
 )
 
 
@@ -360,7 +370,7 @@ st.subheader("🔥 이상 기후 탐지")
 
 
 heat_days = filtered[
-    filtered["최고기온"] >= 33
+    filtered[selected_column] >= 33
 ]
 
 
@@ -386,9 +396,9 @@ else:
 # 이상치 탐지(IQR)
 # =========================
 
-q1 = filtered["평균기온"].quantile(0.25)
+q1 = filtered[selected_column].quantile(0.25)
 
-q3 = filtered["평균기온"].quantile(0.75)
+q3 = filtered[selected_column].quantile(0.75)
 
 iqr = q3-q1
 
@@ -399,9 +409,9 @@ upper = q3 + 1.5*iqr
 
 
 outlier = filtered[
-    (filtered["평균기온"] < lower)
+    (filtered[selected_column] < lower)
     |
-    (filtered["평균기온"] > upper)
+    (filtered[selected_column] > upper)
 ]
 
 
