@@ -144,8 +144,11 @@ st.dataframe(
 
 # 숫자 컬럼 찾기
 
-numeric_columns = []
+# ==========================
+# 숫자 컬럼 자동 탐색 (수정)
+# ==========================
 
+numeric_columns = []
 
 for col in df.columns:
 
@@ -154,11 +157,15 @@ for col in df.columns:
         errors="coerce"
     )
 
-    if converted.notna().sum() > 0:
+    # 전체 데이터 중 70% 이상이 숫자인 경우만 선택
+    ratio = converted.notna().mean()
+
+    if ratio >= 0.7:
 
         df[col] = converted
 
         numeric_columns.append(col)
+
 
 
 
@@ -275,29 +282,30 @@ for col in selected_columns:
 
     a,b,c,d = st.columns(4)
 
+value = pd.to_numeric(
+    df[col],
+    errors="coerce"
+)
 
-    a.metric(
-        "평균",
-        round(df[col].mean(),2)
-    )
+a.metric(
+    "평균",
+    f"{value.mean():.2f}"
+)
 
+b.metric(
+    "최대",
+    f"{value.max():.2f}"
+)
 
-    b.metric(
-        "최대",
-        round(df[col].max(),2)
-    )
+c.metric(
+    "최소",
+    f"{value.min():.2f}"
+)
 
-
-    c.metric(
-        "최소",
-        round(df[col].min(),2)
-    )
-
-
-    d.metric(
-        "표준편차",
-        round(df[col].std(),2)
-    )
+d.metric(
+    "표준편차",
+    f"{value.std():.2f}"
+)
 
 
 
@@ -410,31 +418,24 @@ st.header(
 
 
 
-for col in selected_columns:
+data = pd.to_numeric(
+    df[col],
+    errors="coerce"
+).dropna()
 
 
-    q1 = df[col].quantile(0.25)
+q1 = data.quantile(0.25)
 
-    q3 = df[col].quantile(0.75)
+q3 = data.quantile(0.75)
 
-    iqr = q3-q1
-
-
-    lower = q1 - 1.5*iqr
-
-    upper = q3 + 1.5*iqr
+iqr = q3-q1
 
 
-    outlier = df[
-        (df[col]<lower)
-        |
-        (df[col]>upper)
-    ]
-
-
-    st.write(
-        f"{col}: {len(outlier)}개 발견"
-    )
+outlier = data[
+    (data < q1-1.5*iqr)
+    |
+    (data > q3+1.5*iqr)
+]
 
 
 
