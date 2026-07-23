@@ -4,116 +4,221 @@ import numpy as np
 import plotly.express as px
 
 
-# =========================
-# 기본 설정
-# =========================
+# ==========================
+# 설정
+# ==========================
 
 st.set_page_config(
-    page_title="Weather Analyzer",
-    page_icon="🌦️",
+    page_title="AI CSV Analyzer",
+    page_icon="📊",
     layout="wide"
 )
 
-st.title("🌦️ Weather Analyzer")
-st.write("CSV 날씨 데이터를 분석하는 웹 앱")
+st.title("📊 AI CSV 데이터 분석기")
+st.write(
+    "CSV 파일을 업로드하면 데이터를 자동으로 분석합니다."
+)
 
 
-# =========================
-# CSV 업로드
-# =========================
+# ==========================
+# 파일 업로드
+# ==========================
 
 uploaded_file = st.sidebar.file_uploader(
-    "날씨 CSV 업로드",
+    "CSV 파일 업로드",
     type=["csv"]
 )
 
 
 if uploaded_file is None:
 
-    st.info("CSV 파일을 업로드해주세요.")
-
-    example = pd.DataFrame(
-        {
-            "날짜": [
-                "2026-07-01",
-                "2026-07-02",
-                "2026-07-03",
-                "2026-07-04",
-                "2026-07-05"
-            ],
-            "최고기온": [31, 33, 29, 35, 30],
-            "최저기온": [22, 24, 21, 25, 20],
-            "평균기온": [26, 28, 25, 30, 25],
-            "강수량": [0, 12, 30, 0, 5],
-            "습도": [60, 70, 90, 55, 65]
-        }
+    st.info(
+        "CSV 파일을 업로드해주세요."
     )
 
-    st.subheader("예시 데이터")
+    st.markdown(
+        """
+        지원 예시:
 
-    st.dataframe(example)
+        - 날씨 데이터
+        - 성적 데이터
+        - 매출 데이터
+        - 운동 기록
+        - 실험 데이터
+
+        컬럼명이 정해져 있지 않아도 됩니다.
+        """
+    )
 
     st.stop()
 
 
 
-# =========================
-# 데이터 불러오기
-# =========================
+# ==========================
+# CSV 읽기
+# ==========================
 
 try:
 
     uploaded_file.seek(0)
 
-    df = pd.read_csv(
-        uploaded_file,
-        encoding="utf-8"
+    try:
+        df = pd.read_csv(
+            uploaded_file,
+            encoding="utf-8"
+        )
+
+    except:
+
+        uploaded_file.seek(0)
+
+        df = pd.read_csv(
+            uploaded_file,
+            encoding="cp949"
+        )
+
+
+except Exception as e:
+
+    st.error(
+        "CSV 파일을 읽을 수 없습니다."
     )
 
-except:
+    st.write(e)
 
-    uploaded_file.seek(0)
-
-    df = pd.read_csv(
-        uploaded_file,
-        encoding="cp949"
-    )
-
-
-if df.empty:
-    st.error("CSV 파일이 비어 있습니다.")
     st.stop()
 
 
-st.success("CSV 파일 로딩 완료")
-st.write(df.head())
+
+if df.empty:
+
+    st.error(
+        "비어있는 CSV 파일입니다."
+    )
+
+    st.stop()
 
 
 
+# ==========================
+# 기본 정보
+# ==========================
 
-# =========================
-# 컬럼 확인
-# =========================
-
-# =========================
-# 자동 컬럼 탐색
-# =========================
-
-st.success("CSV 로딩 완료")
-
-st.write("사용 가능한 컬럼")
-
-st.write(list(df.columns))
+st.success(
+    "CSV 로딩 완료"
+)
 
 
-# 숫자 컬럼 자동 탐색
+col1,col2,col3 = st.columns(3)
 
-numeric_columns = df.select_dtypes(
-    include=["int64", "float64"]
-).columns.tolist()
+col1.metric(
+    "행 개수",
+    len(df)
+)
+
+col2.metric(
+    "컬럼 개수",
+    len(df.columns)
+)
+
+col3.metric(
+    "결측치",
+    int(df.isna().sum().sum())
+)
 
 
-if len(numeric_columns) == 0:
+
+st.subheader("📄 데이터 미리보기")
+
+st.dataframe(
+    df.head(20),
+    use_container_width=True
+)
+
+
+
+# ==========================
+# 데이터 타입 변환
+# ==========================
+
+
+# 숫자 컬럼 찾기
+
+numeric_columns = []
+
+
+for col in df.columns:
+
+    converted = pd.to_numeric(
+        df[col],
+        errors="coerce"
+    )
+
+    if converted.notna().sum() > 0:
+
+        df[col] = converted
+
+        numeric_columns.append(col)
+
+
+
+# 날짜 컬럼 찾기
+
+date_column = None
+
+
+for col in df.columns:
+
+    try:
+
+        converted = pd.to_datetime(
+            df[col]
+        )
+
+        valid_ratio = converted.notna().mean()
+
+
+        if valid_ratio > 0.5:
+
+            date_column = col
+
+            df[col] = converted
+
+            break
+
+
+    except:
+
+        pass
+
+
+
+# ==========================
+# 날짜 처리
+# ==========================
+
+if date_column:
+
+    st.sidebar.success(
+        f"날짜 발견: {date_column}"
+    )
+
+    df["분석날짜"] = df[date_column]
+
+
+else:
+
+    st.sidebar.warning(
+        "날짜 컬럼 없음"
+    )
+
+
+
+# ==========================
+# 분석 컬럼 선택
+# ==========================
+
+if len(numeric_columns)==0:
 
     st.error(
         "분석 가능한 숫자 데이터가 없습니다."
@@ -122,376 +227,247 @@ if len(numeric_columns) == 0:
     st.stop()
 
 
-st.sidebar.subheader("분석할 데이터 선택")
+
+st.sidebar.header(
+    "분석 설정"
+)
 
 
-selected_column = st.sidebar.selectbox(
-    "분석 대상",
-    numeric_columns
+selected_columns = st.sidebar.multiselect(
+
+    "분석할 숫자 컬럼 선택",
+
+    numeric_columns,
+
+    default=numeric_columns[:3]
+
 )
 
 
 
-
-# =========================
-# 데이터 처리
-# =========================
-
-df["날짜"] = pd.to_datetime(
-    df["날짜"]
-)
-
-
-number_columns = [
-    "최고기온",
-    "최저기온",
-    "평균기온",
-    "강수량",
-    "습도"
-]
-
-
-for col in number_columns:
-
-    df[col] = pd.to_numeric(
-        df[col],
-        errors="coerce"
-    )
-
-
-df = df.dropna()
-
-
-# =========================
-# 날짜 컬럼 자동 탐색
-# =========================
-
-date_column = None
-
-for col in df.columns:
-    try:
-        converted = pd.to_datetime(df[col])
-
-        # 날짜처럼 변환되는 컬럼 선택
-        if converted.notna().sum() > len(df) * 0.5:
-            date_column = col
-            df[col] = converted
-            break
-
-    except:
-        pass
-
-
-if date_column:
-
-    st.success(
-        f"날짜 컬럼 발견: {date_column}"
-    )
-
-    df["분석용날짜"] = df[date_column]
-
-    df["월"] = (
-        df["분석용날짜"]
-        .dt.month
-    )
-
-else:
+if len(selected_columns)==0:
 
     st.warning(
-        "날짜 컬럼을 찾지 못했습니다. 시간 기반 분석은 제외됩니다."
+        "컬럼을 선택하세요."
+    )
+
+    st.stop()
+
+
+
+# ==========================
+# 통계 분석
+# ==========================
+
+
+st.header(
+    "📊 통계 분석"
+)
+
+
+for col in selected_columns:
+
+
+    st.subheader(
+        f"📌 {col}"
+    )
+
+
+    a,b,c,d = st.columns(4)
+
+
+    a.metric(
+        "평균",
+        round(df[col].mean(),2)
+    )
+
+
+    b.metric(
+        "최대",
+        round(df[col].max(),2)
+    )
+
+
+    c.metric(
+        "최소",
+        round(df[col].min(),2)
+    )
+
+
+    d.metric(
+        "표준편차",
+        round(df[col].std(),2)
     )
 
 
 
-
-# =========================
-# 사이드바 필터
-# =========================
-
-st.sidebar.header("필터")
+# ==========================
+# 그래프
+# ==========================
 
 
-start_date = st.sidebar.date_input(
-    "시작 날짜",
-    df["날짜"].min()
-)
-
-
-end_date = st.sidebar.date_input(
-    "종료 날짜",
-    df["날짜"].max()
+st.header(
+    "📈 시각화"
 )
 
 
 
-filtered = df[
-    (df["날짜"] >= pd.to_datetime(start_date))
-    &
-    (df["날짜"] <= pd.to_datetime(end_date))
-]
+for col in selected_columns:
+
+
+    st.subheader(
+        col
+    )
+
+
+    if date_column:
+
+
+        fig = px.line(
+
+            df,
+
+            x="분석날짜",
+
+            y=col,
+
+            markers=True,
+
+            title=f"{col} 변화"
+
+        )
+
+
+    else:
+
+
+        fig = px.histogram(
+
+            df,
+
+            x=col,
+
+            title=f"{col} 분포"
+
+        )
+
+
+    st.plotly_chart(
+
+        fig,
+
+        use_container_width=True
+
+    )
 
 
 
-rain_filter = st.sidebar.checkbox(
-    "비 온 날만 보기"
+# ==========================
+# 상관관계
+# ==========================
+
+
+if len(selected_columns)>=2:
+
+
+    st.header(
+        "🔗 상관관계"
+    )
+
+
+    corr = df[selected_columns].corr()
+
+
+    fig_corr = px.imshow(
+
+        corr,
+
+        text_auto=True,
+
+        color_continuous_scale="RdBu"
+
+    )
+
+
+    st.plotly_chart(
+
+        fig_corr,
+
+        use_container_width=True
+
+    )
+
+
+
+# ==========================
+# 이상치 탐지
+# ==========================
+
+
+st.header(
+    "⚠️ 이상 데이터 탐지"
 )
 
 
-if rain_filter:
 
-    filtered = filtered[
-        filtered[selected_column] > 0
+for col in selected_columns:
+
+
+    q1 = df[col].quantile(0.25)
+
+    q3 = df[col].quantile(0.75)
+
+    iqr = q3-q1
+
+
+    lower = q1 - 1.5*iqr
+
+    upper = q3 + 1.5*iqr
+
+
+    outlier = df[
+        (df[col]<lower)
+        |
+        (df[col]>upper)
     ]
 
 
-
-# =========================
-# 데이터 미리보기
-# =========================
-
-st.subheader("📄 데이터")
-
-
-st.dataframe(
-    filtered,
-    use_container_width=True
-)
-
-
-
-# =========================
-# 주요 통계
-# =========================
-
-st.subheader("📊 주요 분석")
-
-
-col1,col2,col3,col4 = st.columns(4)
-
-
-col1.metric(
-    "평균 기온",
-    f"{filtered[selected_column].mean():.1f}℃"
-)
-
-
-col2.metric(
-    "최고 기온",
-    f"{filtered[selected_column].max():.1f}℃"
-)
-
-
-col3.metric(
-    "총 강수량",
-    f"{filtered[selected_column].sum():.1f}mm"
-)
-
-
-col4.metric(
-    "평균 습도",
-    f"{filtered[selected_column].mean():.1f}%"
-)
-
-
-
-# =========================
-# 기온 그래프
-# =========================
-
-st.subheader("🌡️ 기온 변화")
-
-
-fig_temp = if "분석용날짜" in filtered.columns:
-
-    fig = px.line(
-        filtered,
-        x="분석용날짜",
-        y=selected_column
-    )
-
-    st.plotly_chart(fig)
-
-    markers=True,
-    title="날짜별 기온 변화"
-)
-
-
-st.plotly_chart(
-    fig_temp,
-    use_container_width=True
-)
-
-
-
-# =========================
-# 강수량 그래프
-# =========================
-
-st.subheader("🌧️ 강수량")
-
-
-fig_rain = px.bar(
-    filtered,
-    x="날짜",
-    y="강수량",
-    title="날짜별 강수량"
-)
-
-
-st.plotly_chart(
-    fig_rain,
-    use_container_width=True
-)
-
-
-
-# =========================
-# 습도 그래프
-# =========================
-
-st.subheader("💧 습도")
-
-
-fig_humidity = px.line(
-    filtered,
-    x="날짜",
-    y="습도",
-    markers=True
-)
-
-
-st.plotly_chart(
-    fig_humidity,
-    use_container_width=True
-)
-
-
-
-# =========================
-# 월별 분석
-# =========================
-
-st.subheader("📅 월별 평균")
-
-
-monthly = (
-    filtered
-    .groupby("월")
-    [["평균기온","강수량","습도"]]
-    .mean()
-    .reset_index()
-)
-
-
-st.dataframe(monthly)
-
-
-
-fig_month = px.bar(
-    monthly,
-    x="월",
-    y="평균기온",
-    title="월별 평균 기온"
-)
-
-
-st.plotly_chart(
-    fig_month,
-    use_container_width=True
-)
-
-
-
-# =========================
-# 폭염 탐지
-# =========================
-
-st.subheader("🔥 이상 기후 탐지")
-
-
-heat_days = filtered[
-    filtered[selected_column] >= 33
-]
-
-
-if len(heat_days):
-
-    st.warning(
-        f"폭염 가능 날짜 {len(heat_days)}일 발견"
-    )
-
-    st.dataframe(
-        heat_days
-    )
-
-else:
-
-    st.success(
-        "폭염 기준 날짜가 없습니다."
-    )
-
-
-
-# =========================
-# 이상치 탐지(IQR)
-# =========================
-
-q1 = filtered[selected_column].quantile(0.25)
-
-q3 = filtered[selected_column].quantile(0.75)
-
-iqr = q3-q1
-
-
-lower = q1 - 1.5*iqr
-
-upper = q3 + 1.5*iqr
-
-
-outlier = filtered[
-    (filtered[selected_column] < lower)
-    |
-    (filtered[selected_column] > upper)
-]
-
-
-st.write(
-    "평균기온 이상치"
-)
-
-
-if len(outlier):
-
-    st.dataframe(outlier)
-
-else:
-
     st.write(
-        "이상치 없음"
+        f"{col}: {len(outlier)}개 발견"
     )
 
 
 
-# =========================
-# 다운로드
-# =========================
-
-st.subheader("📥 결과 다운로드")
+# ==========================
+# 데이터 다운로드
+# ==========================
 
 
-csv = filtered.to_csv(
+st.header(
+    "📥 다운로드"
+)
+
+
+csv = df.to_csv(
+
     index=False,
+
     encoding="utf-8-sig"
+
 )
 
 
 st.download_button(
-    "분석 결과 CSV 다운로드",
-    csv,
-    "weather_result.csv",
-    "text/csv"
-)
 
+    "분석 결과 다운로드",
+
+    csv,
+
+    "analysis_result.csv",
+
+    "text/csv"
+
+)
 
 
 st.success(
