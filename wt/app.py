@@ -162,7 +162,45 @@ for col in number_columns:
 df = df.dropna()
 
 
-df["월"] = df["날짜"].dt.month
+# =========================
+# 날짜 컬럼 자동 탐색
+# =========================
+
+date_column = None
+
+for col in df.columns:
+    try:
+        converted = pd.to_datetime(df[col])
+
+        # 날짜처럼 변환되는 컬럼 선택
+        if converted.notna().sum() > len(df) * 0.5:
+            date_column = col
+            df[col] = converted
+            break
+
+    except:
+        pass
+
+
+if date_column:
+
+    st.success(
+        f"날짜 컬럼 발견: {date_column}"
+    )
+
+    df["분석용날짜"] = df[date_column]
+
+    df["월"] = (
+        df["분석용날짜"]
+        .dt.month
+    )
+
+else:
+
+    st.warning(
+        "날짜 컬럼을 찾지 못했습니다. 시간 기반 분석은 제외됩니다."
+    )
+
 
 
 
@@ -263,14 +301,16 @@ col4.metric(
 st.subheader("🌡️ 기온 변화")
 
 
-fig_temp = px.line(
-    filtered,
-    x="날짜",
-    y=[
-        "최고기온",
-        "최저기온",
-        "평균기온"
-    ],
+fig_temp = if "분석용날짜" in filtered.columns:
+
+    fig = px.line(
+        filtered,
+        x="분석용날짜",
+        y=selected_column
+    )
+
+    st.plotly_chart(fig)
+
     markers=True,
     title="날짜별 기온 변화"
 )
