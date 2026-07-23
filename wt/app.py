@@ -62,25 +62,31 @@ if uploaded_file is None:
 # =========================
 
 try:
-    try:
-        df = pd.read_csv(
-            uploaded_file,
-            encoding="utf-8"
-        )
 
-    except UnicodeDecodeError:
-        df = pd.read_csv(
-            uploaded_file,
-            encoding="cp949"
-        )
+    uploaded_file.seek(0)
 
-except Exception as e:
+    df = pd.read_csv(
+        uploaded_file,
+        encoding="utf-8"
+    )
 
-    st.error("CSV 파일을 읽을 수 없습니다.")
+except:
 
-    st.write(e)
+    uploaded_file.seek(0)
 
+    df = pd.read_csv(
+        uploaded_file,
+        encoding="cp949"
+    )
+
+
+if df.empty:
+    st.error("CSV 파일이 비어 있습니다.")
     st.stop()
+
+
+st.success("CSV 파일 로딩 완료")
+st.write(df.head())
 
 
 
